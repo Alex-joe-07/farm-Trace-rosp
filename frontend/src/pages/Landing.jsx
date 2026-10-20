@@ -622,13 +622,10 @@ const StyledUserTypeCard = ({
   }[color];
 
   const handleCardClick = () => {
-    console.log(`🔄 Navigating to login with role: ${role}`);
-
-    // Store the selected role for signup process
+    const roleKey = role?.toLowerCase() || "farmer";
+    console.log(`🔄 Navigating to instant demo login with role: ${roleKey}`);
     localStorage.setItem("selectedRole", role);
-
-    // Navigate to login page
-    navigate("/login");
+    navigate(`/login?demo=${roleKey}`);
   };
 
   return (
@@ -967,6 +964,13 @@ export default function Landing() {
               </motion.button>
 
               <Link
+                to="/login?demo=farmer"
+                className="flex items-center space-x-1.5 text-emerald-700 bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200/80 text-xs sm:text-sm font-semibold py-2 px-3.5 rounded-xl transition duration-150 shadow-sm"
+              >
+                <span>⚡ Demo Login</span>
+              </Link>
+
+              <Link
                 to="/login"
                 className="text-slate-700 hover:text-slate-900 text-xs sm:text-sm font-semibold py-2 px-3.5 rounded-xl transition duration-150 hover:bg-slate-100/80"
               >
@@ -1057,6 +1061,41 @@ export default function Landing() {
                 <ArrowRight className="w-4 h-4 text-slate-400" />
               </Link>
             </motion.div>
+          </motion.div>
+
+          {/* Instant 1-Click Demo Launcher Bar */}
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.35 }}
+            className="mt-8 pt-6 border-t border-slate-200/80 max-w-xl mx-auto"
+          >
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5">
+              ⚡ 1-Click Instant Demo Login (Try Without Signup):
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-2.5">
+              <Link
+                to="/login?demo=farmer"
+                className="px-3.5 py-2 rounded-xl bg-white hover:bg-emerald-50/60 border border-slate-200/90 hover:border-emerald-500/50 text-xs font-bold text-slate-800 hover:text-emerald-700 shadow-sm transition flex items-center gap-1.5"
+              >
+                <span>🌾 Demo Farmer</span>
+                <span className="text-[10px] text-slate-400 font-normal">Producer</span>
+              </Link>
+              <Link
+                to="/login?demo=logistics"
+                className="px-3.5 py-2 rounded-xl bg-white hover:bg-blue-50/60 border border-slate-200/90 hover:border-blue-500/50 text-xs font-bold text-slate-800 hover:text-blue-700 shadow-sm transition flex items-center gap-1.5"
+              >
+                <span>🚚 Demo Logistics</span>
+                <span className="text-[10px] text-slate-400 font-normal">Fleet</span>
+              </Link>
+              <Link
+                to="/login?demo=retailer"
+                className="px-3.5 py-2 rounded-xl bg-white hover:bg-purple-50/60 border border-slate-200/90 hover:border-purple-500/50 text-xs font-bold text-slate-800 hover:text-purple-700 shadow-sm transition flex items-center gap-1.5"
+              >
+                <span>🏬 Demo Retailer</span>
+                <span className="text-[10px] text-slate-400 font-normal">Store</span>
+              </Link>
+            </div>
           </motion.div>
 
           {/* Stats Preview */}

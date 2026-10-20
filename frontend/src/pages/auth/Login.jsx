@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { supabase } from "../../config/supabase";
 import {
@@ -23,8 +23,53 @@ export default function Login() {
   const [resetEmail, setResetEmail] = useState("");
   const [resetSent, setResetSent] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [activeDemoRole, setActiveDemoRole] = useState(null);
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
+
+  const demoAccounts = {
+    farmer: { email: "farmer@farmtrace.com", password: "Farmer@123", role: "farmer" },
+    logistics: { email: "logistics@farmtrace.com", password: "Logistics@123", role: "logistics" },
+    retailer: { email: "retailer@farmtrace.com", password: "Retailer@123", role: "retailer" },
+  };
+
+  const handleInstantDemo = async (roleKey) => {
+    const target = demoAccounts[roleKey];
+    if (!target) return;
+    setFormData({ email: target.email, password: target.password });
+    setError("");
+    setLoading(true);
+    setActiveDemoRole(roleKey);
+
+    try {
+      console.log(`⚡ Instant Demo Logging in as ${roleKey}...`);
+      const result = await login(target.email, target.password);
+      if (!result.success) {
+        throw new Error(result.error || "Login failed");
+      }
+      if (result.user) {
+        localStorage.setItem("userRole", result.user.user_metadata?.role || target.role);
+        localStorage.setItem("userData", JSON.stringify(result.user));
+        localStorage.setItem("isLoggedIn", "true");
+      }
+      navigate("/dashboard");
+    } catch (err) {
+      console.error("Instant demo login error:", err);
+      setError(err.message || "Failed to log in with demo account");
+    } finally {
+      setLoading(false);
+      setActiveDemoRole(null);
+    }
+  };
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const demoParam = params.get("demo") || params.get("role");
+    if (demoParam && demoAccounts[demoParam.toLowerCase()]) {
+      handleInstantDemo(demoParam.toLowerCase());
+    }
+  }, [location.search]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -32,11 +77,6 @@ export default function Login() {
       ...formData,
       [name]: value,
     });
-    if (error) setError("");
-  };
-
-  const handleQuickDemo = (email, password) => {
-    setFormData({ email, password });
     if (error) setError("");
   };
 
@@ -85,9 +125,6 @@ export default function Login() {
         localStorage.setItem("isLoggedIn", "true");
       }
 
-      alert(
-        `Welcome back, ${result.user.user_metadata?.name || result.user.email}!`
-      );
       navigate("/dashboard");
     } catch (err) {
       console.error("❌ Login error:", err);
@@ -223,58 +260,72 @@ export default function Login() {
           </motion.div>
         )}
 
-        {/* Quick Demo Accounts */}
+        {/* 1-Click Instant Demo Access */}
         {!forgotPasswordMode && (
-          <div className="mb-6 p-4 bg-gray-900/60 rounded-2xl border border-gray-700/60 backdrop-blur-sm">
+          <div className="mb-6 p-4 bg-slate-900/90 rounded-2xl border border-slate-800 shadow-inner">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
-                ⚡ Quick Demo Accounts
+              <span className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                ⚡ 1-Click Instant Demo Login
               </span>
-              <span className="text-[11px] text-gray-400">Click to auto-fill</span>
+              <span className="text-[10px] text-emerald-400 font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                Direct Entry
+              </span>
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-2.5">
               <button
                 type="button"
-                onClick={() => handleQuickDemo("farmer@farmtrace.com", "Farmer@123")}
-                className={`flex flex-col items-center justify-center p-2.5 rounded-xl border transition-all duration-200 ${
-                  formData.email === "farmer@farmtrace.com"
-                    ? "bg-emerald-500/25 border-emerald-400 text-emerald-300 shadow-md shadow-emerald-500/20"
-                    : "bg-gray-800/80 border-gray-700 hover:border-emerald-500/50 text-gray-300 hover:text-white"
+                disabled={loading}
+                onClick={() => handleInstantDemo("farmer")}
+                className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all duration-150 ${
+                  activeDemoRole === "farmer"
+                    ? "bg-emerald-500/20 border-emerald-500 text-emerald-300 ring-2 ring-emerald-500/30"
+                    : "bg-slate-800/80 border-slate-700 hover:border-slate-500 text-slate-200 hover:bg-slate-800"
                 }`}
               >
-                <span className="text-lg mb-0.5">🌱</span>
-                <span className="text-xs font-semibold">Farmer</span>
-                <span className="text-[10px] text-gray-400">Producer</span>
+                <span className="text-xl mb-1">🌾</span>
+                <span className="text-xs font-bold">Farmer</span>
+                <span className="text-[10px] text-slate-400">
+                  {activeDemoRole === "farmer" ? "Entering..." : "Producer"}
+                </span>
               </button>
 
               <button
                 type="button"
-                onClick={() => handleQuickDemo("logistics@farmtrace.com", "Logistics@123")}
-                className={`flex flex-col items-center justify-center p-2.5 rounded-xl border transition-all duration-200 ${
-                  formData.email === "logistics@farmtrace.com"
-                    ? "bg-blue-500/25 border-blue-400 text-blue-300 shadow-md shadow-blue-500/20"
-                    : "bg-gray-800/80 border-gray-700 hover:border-blue-500/50 text-gray-300 hover:text-white"
+                disabled={loading}
+                onClick={() => handleInstantDemo("logistics")}
+                className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all duration-150 ${
+                  activeDemoRole === "logistics"
+                    ? "bg-blue-500/20 border-blue-500 text-blue-300 ring-2 ring-blue-500/30"
+                    : "bg-slate-800/80 border-slate-700 hover:border-slate-500 text-slate-200 hover:bg-slate-800"
                 }`}
               >
-                <span className="text-lg mb-0.5">🚚</span>
-                <span className="text-xs font-semibold">Logistics</span>
-                <span className="text-[10px] text-gray-400">Transit</span>
+                <span className="text-xl mb-1">🚚</span>
+                <span className="text-xs font-bold">Logistics</span>
+                <span className="text-[10px] text-slate-400">
+                  {activeDemoRole === "logistics" ? "Entering..." : "Fleet"}
+                </span>
               </button>
 
               <button
                 type="button"
-                onClick={() => handleQuickDemo("retailer@farmtrace.com", "Retailer@123")}
-                className={`flex flex-col items-center justify-center p-2.5 rounded-xl border transition-all duration-200 ${
-                  formData.email === "retailer@farmtrace.com"
-                    ? "bg-purple-500/25 border-purple-400 text-purple-300 shadow-md shadow-purple-500/20"
-                    : "bg-gray-800/80 border-gray-700 hover:border-purple-500/50 text-gray-300 hover:text-white"
+                disabled={loading}
+                onClick={() => handleInstantDemo("retailer")}
+                className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all duration-150 ${
+                  activeDemoRole === "retailer"
+                    ? "bg-purple-500/20 border-purple-500 text-purple-300 ring-2 ring-purple-500/30"
+                    : "bg-slate-800/80 border-slate-700 hover:border-slate-500 text-slate-200 hover:bg-slate-800"
                 }`}
               >
-                <span className="text-lg mb-0.5">🏪</span>
-                <span className="text-xs font-semibold">Retailer</span>
-                <span className="text-[10px] text-gray-400">Store</span>
+                <span className="text-xl mb-1">🏬</span>
+                <span className="text-xs font-bold">Retailer</span>
+                <span className="text-[10px] text-slate-400">
+                  {activeDemoRole === "retailer" ? "Entering..." : "Store"}
+                </span>
               </button>
             </div>
+            <p className="text-[11px] text-slate-400 text-center mt-2.5">
+              Click any role above to automatically authenticate into that dashboard
+            </p>
           </div>
         )}
 
