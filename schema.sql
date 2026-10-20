@@ -146,7 +146,7 @@ CREATE TABLE IF NOT EXISTS public.temperature_logs (
   timestamp TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 8. Enable Row Level Security (RLS) & Public Policies for Demo/Dev
+-- 8. Enable Row Level Security (RLS) and create least-privilege policies
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.farms ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
@@ -159,26 +159,95 @@ ALTER TABLE public.retailer_products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.product_verifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.temperature_logs ENABLE ROW LEVEL SECURITY;
 
--- Allow authenticated and anon read/write for development purposes:
-DO $$
-DECLARE
-  tbl text;
-BEGIN
-  FOR tbl IN
-    SELECT tablename FROM pg_tables WHERE schemaname = 'public'
-  LOOP
-    EXECUTE format('DROP POLICY IF EXISTS dev_all_%I ON public.%I', tbl, tbl);
-    EXECUTE format('CREATE POLICY dev_all_%I ON public.%I FOR ALL USING (true) WITH CHECK (true)', tbl, tbl);
-  END LOOP;
-END $$;
+-- Users can only access their own profile unless they have an admin role claim.
+DROP POLICY IF EXISTS "users_select_own" ON public.users;
+CREATE POLICY "users_select_own" ON public.users
+  FOR SELECT USING (auth.uid() = id OR auth.jwt()->>'role' = 'admin');
+
+DROP POLICY IF EXISTS "users_update_own" ON public.users;
+CREATE POLICY "users_update_own" ON public.users
+  FOR UPDATE USING (auth.uid() = id OR auth.jwt()->>'role' = 'admin')
+  WITH CHECK (auth.uid() = id OR auth.jwt()->>'role' = 'admin');
+
+DROP POLICY IF EXISTS "users_insert_own" ON public.users;
+CREATE POLICY "users_insert_own" ON public.users
+  FOR INSERT WITH CHECK (auth.uid() = id OR auth.jwt()->>'role' = 'admin');
+
+DROP POLICY IF EXISTS "farms_owner_access" ON public.farms;
+CREATE POLICY "farms_owner_access" ON public.farms
+  FOR ALL USING (user_id = auth.uid() OR auth.jwt()->>'role' = 'admin')
+  WITH CHECK (user_id = auth.uid() OR auth.jwt()->>'role' = 'admin');
+
+DROP POLICY IF EXISTS "products_owner_access" ON public.products;
+CREATE POLICY "products_owner_access" ON public.products
+  FOR ALL USING (user_id = auth.uid() OR auth.jwt()->>'role' = 'admin')
+  WITH CHECK (user_id = auth.uid() OR auth.jwt()->>'role' = 'admin');
+
+DROP POLICY IF EXISTS "shipments_owner_access" ON public.shipments;
+CREATE POLICY "shipments_owner_access" ON public.shipments
+  FOR ALL USING (user_id = auth.uid() OR auth.jwt()->>'role' = 'admin')
+  WITH CHECK (user_id = auth.uid() OR auth.jwt()->>'role' = 'admin');
+
+DROP POLICY IF EXISTS "logistics_vehicle_access" ON public.logistics_vehicles;
+CREATE POLICY "logistics_vehicle_access" ON public.logistics_vehicles
+  FOR ALL USING (user_id = auth.uid() OR auth.jwt()->>'role' = 'admin')
+  WITH CHECK (user_id = auth.uid() OR auth.jwt()->>'role' = 'admin');
+
+DROP POLICY IF EXISTS "logistics_shipments_owner_access" ON public.logistics_shipments;
+CREATE POLICY "logistics_shipments_owner_access" ON public.logistics_shipments
+  FOR ALL USING (user_id = auth.uid() OR auth.jwt()->>'role' = 'admin')
+  WITH CHECK (user_id = auth.uid() OR auth.jwt()->>'role' = 'admin');
+
+DROP POLICY IF EXISTS "logistics_qr_scans_access" ON public.logistics_qr_scans;
+CREATE POLICY "logistics_qr_scans_access" ON public.logistics_qr_scans
+  FOR ALL USING (auth.uid() IS NOT NULL OR auth.jwt()->>'role' = 'admin')
+  WITH CHECK (auth.uid() IS NOT NULL OR auth.jwt()->>'role' = 'admin');
+
+DROP POLICY IF EXISTS "logistics_tracking_access" ON public.logistics_tracking;
+CREATE POLICY "logistics_tracking_access" ON public.logistics_tracking
+  FOR ALL USING (auth.uid() IS NOT NULL OR auth.jwt()->>'role' = 'admin')
+  WITH CHECK (auth.uid() IS NOT NULL OR auth.jwt()->>'role' = 'admin');
+
+DROP POLICY IF EXISTS "retailer_products_owner_access" ON public.retailer_products;
+CREATE POLICY "retailer_products_owner_access" ON public.retailer_products
+  FOR ALL USING (retailer_id = auth.uid() OR auth.jwt()->>'role' = 'admin')
+  WITH CHECK (retailer_id = auth.uid() OR auth.jwt()->>'role' = 'admin');
+
+DROP POLICY IF EXISTS "product_verifications_access" ON public.product_verifications;
+CREATE POLICY "product_verifications_access" ON public.product_verifications
+  FOR ALL USING (auth.uid() IS NOT NULL OR auth.jwt()->>'role' = 'admin')
+  WITH CHECK (auth.uid() IS NOT NULL OR auth.jwt()->>'role' = 'admin');
+
+DROP POLICY IF EXISTS "temperature_logs_access" ON public.temperature_logs;
+CREATE POLICY "temperature_logs_access" ON public.temperature_logs
+  FOR ALL USING (shipment_id IN (
+      SELECT id FROM public.shipments WHERE user_id = auth.uid()
+    ) OR auth.jwt()->>'role' = 'admin')
+  WITH CHECK (shipment_id IN (
+      SELECT id FROM public.shipments WHERE user_id = auth.uid()
+    ) OR auth.jwt()->>'role' = 'admin');
 
 -- 9. Storage Bucket setup for Product Images
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('product-images', 'product-images', true)
 ON CONFLICT (id) DO NOTHING;
 
-DROP POLICY IF EXISTS "Public Access" ON storage.objects;
-CREATE POLICY "Public Access" ON storage.objects FOR ALL USING (bucket_id = 'product-images') WITH CHECK (bucket_id = 'product-images');
+DROP POLICY IF EXISTS "product_images_public_read" ON storage.objects;
+CREATE POLICY "product_images_public_read" ON storage.objects
+  FOR SELECT USING (bucket_id = 'product-images');
+
+DROP POLICY IF EXISTS "product_images_authenticated_write" ON storage.objects;
+CREATE POLICY "product_images_authenticated_write" ON storage.objects
+  FOR INSERT WITH CHECK (bucket_id = 'product-images' AND auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "product_images_authenticated_update" ON storage.objects;
+CREATE POLICY "product_images_authenticated_update" ON storage.objects
+  FOR UPDATE USING (bucket_id = 'product-images' AND auth.role() = 'authenticated')
+  WITH CHECK (bucket_id = 'product-images' AND auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "product_images_authenticated_delete" ON storage.objects;
+CREATE POLICY "product_images_authenticated_delete" ON storage.objects
+  FOR DELETE USING (bucket_id = 'product-images' AND auth.role() = 'authenticated');
 
 -- ==============================================================================
 -- 10. Schema Migrations (Columns used by the Frontend Dashboards)

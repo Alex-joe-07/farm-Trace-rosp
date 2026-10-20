@@ -121,10 +121,6 @@ router.post("/login", validateLogin, async (req, res) => {
         business_name: data.user.user_metadata?.business_name,
         location: data.user.user_metadata?.location,
       },
-      session: {
-        access_token: data.session.access_token,
-        refresh_token: data.session.refresh_token,
-      },
     });
   } catch (error) {
     console.error("💥 Login error:", error);

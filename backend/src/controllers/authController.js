@@ -3,9 +3,18 @@ import jwt from 'jsonwebtoken';
 import { supabase } from '../config/supabase.js';
 import { validationResult } from 'express-validator';
 
+const getJwtSecret = () => {
+  const jwtSecret = process.env.JWT_SECRET;
+
+  if (!jwtSecret) {
+    throw new Error('JWT_SECRET is not configured. Set a secure environment variable before starting the backend.');
+  }
+
+  return jwtSecret;
+};
+
 export const signup = async (req, res) => {
   try {
-    // Check validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
@@ -13,7 +22,6 @@ export const signup = async (req, res) => {
 
     const { email, password, name, farmName, role, location } = req.body;
 
-    // Check if user already exists
     const { data: existingUser, error: existingError } = await supabase
       .from('users')
       .select('id')
@@ -21,7 +29,6 @@ export const signup = async (req, res) => {
       .single();
 
     if (existingError && existingError.code !== 'PGRST116') {
-      // PGRST116 means no rows returned (user doesn't exist)
       throw existingError;
     }
 
@@ -29,10 +36,8 @@ export const signup = async (req, res) => {
       return res.status(400).json({ error: 'User already exists with this email' });
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Create user in database
     const { data: user, error } = await supabase
       .from('users')
       .insert([
@@ -55,14 +60,12 @@ export const signup = async (req, res) => {
       throw error;
     }
 
-    // Generate JWT token
     const token = jwt.sign(
       { userId: user.id, email: user.email, role: user.role },
-      process.env.JWT_SECRET || 'fallback-secret',
+      getJwtSecret(),
       { expiresIn: '7d' }
     );
 
-    // Remove password from response
     const { password: _, ...userWithoutPassword } = user;
 
     res.status(201).json({
@@ -73,9 +76,8 @@ export const signup = async (req, res) => {
 
   } catch (error) {
     console.error('Signup error:', error);
-    res.status(500).json({ 
-      error: 'Internal server error',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    res.status(500).json({
+      error: 'Internal server error'
     });
   }
 };
@@ -89,7 +91,6 @@ export const login = async (req, res) => {
 
     const { email, password } = req.body;
 
-    // Find user
     const { data: user, error } = await supabase
       .from('users')
       .select('*')
@@ -100,20 +101,17 @@ export const login = async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Check password
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Generate token
     const token = jwt.sign(
       { userId: user.id, email: user.email, role: user.role },
-      process.env.JWT_SECRET || 'fallback-secret',
+      getJwtSecret(),
       { expiresIn: '7d' }
     );
 
-    // Remove password from response
     const { password: _, ...userWithoutPassword } = user;
 
     res.json({
@@ -124,9 +122,8 @@ export const login = async (req, res) => {
 
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({ 
-      error: 'Internal server error',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    res.status(500).json({
+      error: 'Internal server error'
     });
   }
 };

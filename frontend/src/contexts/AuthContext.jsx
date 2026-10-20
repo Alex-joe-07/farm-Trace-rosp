@@ -2,7 +2,57 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { supabase } from '../config/supabase';
 
+const DEMO_ACCOUNTS = {
+  'farmer@farmtrace.com': {
+    id: 'demo-farmer',
+    email: 'farmer@farmtrace.com',
+    role: 'farmer',
+    name: 'Demo Farmer',
+    user_metadata: {
+      role: 'farmer',
+      name: 'Demo Farmer',
+      business_name: 'Green Valley Farm',
+      location: 'Punjab, India',
+    },
+  },
+  'logistics@farmtrace.com': {
+    id: 'demo-logistics',
+    email: 'logistics@farmtrace.com',
+    role: 'logistics',
+    name: 'Demo Logistics',
+    user_metadata: {
+      role: 'logistics',
+      name: 'Demo Logistics',
+      business_name: 'FastMove Logistics',
+      location: 'Delhi, India',
+    },
+  },
+  'retailer@farmtrace.com': {
+    id: 'demo-retailer',
+    email: 'retailer@farmtrace.com',
+    role: 'retailer',
+    name: 'Demo Retailer',
+    user_metadata: {
+      role: 'retailer',
+      name: 'Demo Retailer',
+      business_name: 'FreshMart Store',
+      location: 'Mumbai, India',
+    },
+  },
+};
+
 const AuthContext = createContext();
+
+const getDemoUser = () => {
+  try {
+    const savedUser = localStorage.getItem('demoUser');
+    if (!savedUser) return null;
+    return JSON.parse(savedUser);
+  } catch (error) {
+    console.error('Demo session parse error:', error);
+    return null;
+  }
+};
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -19,15 +69,21 @@ export const AuthProvider = ({ children }) => {
   // Check for existing session on component mount
   useEffect(() => {
     checkSession();
-    
+
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state changed:', event);
         if (session?.user) {
+          localStorage.removeItem('demoUser');
           setUser(session.user);
         } else {
-          setUser(null);
+          const storedDemoUser = getDemoUser();
+          if (storedDemoUser) {
+            setUser(storedDemoUser);
+          } else {
+            setUser(null);
+          }
         }
         setLoading(false);
       }
@@ -38,6 +94,13 @@ export const AuthProvider = ({ children }) => {
 
   const checkSession = async () => {
     try {
+      const storedDemoUser = getDemoUser();
+      if (storedDemoUser) {
+        setUser(storedDemoUser);
+        setLoading(false);
+        return;
+      }
+
       const { data: { session }, error } = await supabase.auth.getSession();
       if (error) {
         console.error('Session error:', error);
@@ -55,15 +118,32 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     setLoading(true);
     try {
+      const normalizedEmail = email.trim().toLowerCase();
+      const demoUserTemplate = DEMO_ACCOUNTS[normalizedEmail];
+
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
+        email: normalizedEmail,
         password: password,
       });
 
       if (error) {
+        if (demoUserTemplate && password === `${demoUserTemplate.role.charAt(0).toUpperCase()}${demoUserTemplate.role.slice(1)}@123`) {
+          const fallbackUser = {
+            ...demoUserTemplate,
+            user_metadata: { ...demoUserTemplate.user_metadata },
+          };
+
+          localStorage.setItem('demoUser', JSON.stringify(fallbackUser));
+          localStorage.setItem('userRole', fallbackUser.role);
+          localStorage.setItem('userData', JSON.stringify(fallbackUser));
+          localStorage.setItem('isLoggedIn', 'true');
+          setUser(fallbackUser);
+          return { success: true, user: fallbackUser, demo: true };
+        }
         throw error;
       }
 
+      localStorage.removeItem('demoUser');
       setUser(data.user);
       return { success: true, user: data.user };
     } catch (error) {
@@ -109,6 +189,10 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     setLoading(true);
     try {
+      localStorage.removeItem('demoUser');
+      localStorage.removeItem('userRole');
+      localStorage.removeItem('userData');
+      localStorage.removeItem('isLoggedIn');
       const { error } = await supabase.auth.signOut();
       if (error) {
         throw error;
@@ -116,6 +200,7 @@ export const AuthProvider = ({ children }) => {
       setUser(null);
     } catch (error) {
       console.error('Logout error:', error);
+      setUser(null);
     } finally {
       setLoading(false);
     }
