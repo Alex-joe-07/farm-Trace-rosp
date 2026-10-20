@@ -28,7 +28,8 @@
 | **UI-06** | UI Overhaul | Refine Layout header & footer for clean SaaS presentation | ✅ Completed |
 | **BLD-01** | Validation | Reinstalled clean dependencies & verified production build compiles with 0 errors | ✅ Completed |
 | **GIT-01** | Collaboration | Initialized fresh Git repository with root commit (Zero secret leaks) | ✅ Completed |
-| **DB-01** | Database | Execute `schema.sql` in Supabase (`Farm Trace - rosp`) & configure local `.env` | ⏳ Pending User Action |
+| **DEM-01** | Demo Access | Added 1-Click Instant Demo Login (Farmer, Logistics, Retailer) to Landing & Login | ✅ Completed |
+| **DB-01** | Database | Execute `schema.sql` in Supabase (`Farm Trace - rosp`) & configure local `.env` | ⏳ Ready for Sync |
 
 ---
 
